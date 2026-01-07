@@ -1,29 +1,22 @@
 package com.hmdp.service.impl;
 
+import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.hmdp.dto.Result;
-import com.hmdp.entity.SeckillVoucher;
 import com.hmdp.entity.VoucherOrder;
 import com.hmdp.mapper.VoucherOrderMapper;
 import com.hmdp.service.ISeckillVoucherService;
 import com.hmdp.service.IVoucherOrderService;
-import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.hmdp.utils.RedisIdWorker;
-import com.hmdp.utils.SimpleRedisLock;
 import com.hmdp.utils.UserHolder;
 import lombok.extern.slf4j.Slf4j;
-import org.redisson.api.RLock;
-import org.redisson.api.RedissonClient;
-import org.springframework.aop.framework.AopContext;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.script.DefaultRedisScript;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 import javax.annotation.PostConstruct;
 import javax.annotation.Resource;
-import java.time.LocalDateTime;
 import java.util.Collections;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
@@ -47,8 +40,6 @@ public class VoucherOrderServiceImpl extends ServiceImpl<VoucherOrderMapper, Vou
     private RedisIdWorker redisIdWorker;
     @Autowired
     private StringRedisTemplate stringRedisTemplate;
-    @Resource
-    private RedissonClient redissonClient;
 
     private static final DefaultRedisScript<Long> SECKILL_SCRIPT;
 
@@ -70,7 +61,7 @@ public class VoucherOrderServiceImpl extends ServiceImpl<VoucherOrderMapper, Vou
         @Override
         public void run() {
             while (true) {
-                VoucherOrder voucherOrder = null;
+                VoucherOrder voucherOrder;
                 try {
                     voucherOrder = blockingQueue.take();
                     handleVoucherOrder(voucherOrder);
@@ -96,12 +87,8 @@ public class VoucherOrderServiceImpl extends ServiceImpl<VoucherOrderMapper, Vou
         Long result = stringRedisTemplate.execute(SECKILL_SCRIPT,
                 Collections.emptyList(),
                 voucherId.toString(), userId.toString());
-        int r = result.intValue();
-        if (result == 1) {
-            return Result.fail("不能重复下单！");
-        } else if (result == 2) {
-            return Result.fail("库存不足！");
-        }
+        if (result == 1) return Result.fail("不能重复下单！");
+        else if (result == 2) return Result.fail("库存不足！");
 
         VoucherOrder voucherOrder = new VoucherOrder();
         voucherOrder.setVoucherId(voucherId);//优惠券id
@@ -113,49 +100,4 @@ public class VoucherOrderServiceImpl extends ServiceImpl<VoucherOrderMapper, Vou
         return Result.ok();
     }
 }
-//        //获取秒杀券信息
-//        SeckillVoucher voucher = iSeckillVoucherService.getById(voucherId);
-//        //判断是否在时间范围内
-//        if (LocalDateTime.now().isAfter(voucher.getEndTime()) || LocalDateTime.now().isBefore(voucher.getBeginTime())) {
-//            return Result.fail("不在秒杀时间内！");
-//        }
-//        Long userId = UserHolder.getUser().getId();
-//        RLock lock = redissonClient.getLock("lock:order:" + userId);
-//        //一人一单解决方案
-//        boolean b = lock.tryLock();
-//        if(!b){
-//            return Result.fail("不允许重复下单");
-//        }
-//        //获取代理对象
-//        try {
-//            IVoucherOrderService proxy = (IVoucherOrderService) AopContext.currentProxy();
-//            return proxy.creatVoucherOrder(voucherId, voucher);
-//        }  finally {
-//            lock.unlock();
-//        }
-
-
-//    @Transactional
-//    public Result creatVoucherOrder(Long voucherId, SeckillVoucher voucher) {
-//
-//        Long userId = UserHolder.getUser().getId();
-//        long count = query().eq("user_id", userId).eq("voucher_id", voucherId).count();
-//        if (count > 0) {
-//            return Result.fail("用户已经购买过！");
-//        }
-//        //判断是否库存充足
-//        if (voucher.getStock() <= 0) {
-//            return Result.fail("库存不足！");
-//        }
-//        //库存-1
-//        boolean flag = iSeckillVoucherService.update().setSql("stock=stock-1").eq("voucher_id", voucherId).gt("stock", 0).update();
-//        if (!flag) {
-//            return Result.fail("库存不足！");
-//        }
-//        return Result.ok();
-//        //创建订单信息 并返回订单id
-//
-////        save(voucherOrder);
-////        return Result.ok(voucherOrder.getId());
-//    }
 

@@ -7,6 +7,7 @@ import com.hmdp.dto.Result;
 import com.hmdp.entity.Shop;
 import com.hmdp.service.IShopService;
 import com.hmdp.utils.SystemConstants;
+import org.redisson.api.RBloomFilter;
 import org.springframework.web.bind.annotation.*;
 
 import javax.annotation.Resource;
@@ -25,6 +26,8 @@ public class ShopController {
 
     @Resource
     public IShopService shopService;
+    @Resource
+    private RBloomFilter<Long> shopIdBloomFilter;
 
     /**
      * 根据id查询商铺信息
@@ -46,6 +49,8 @@ public class ShopController {
     public Result saveShop(@RequestBody Shop shop) {
         // 写入数据库
         shopService.save(shop);
+        //写入布隆过滤器
+        shopIdBloomFilter.add(shop.getId());
         // 返回店铺id
         return Result.ok(shop.getId());
     }

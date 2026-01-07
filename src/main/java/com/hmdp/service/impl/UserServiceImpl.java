@@ -1,9 +1,7 @@
 package com.hmdp.service.impl;
 
 import cn.hutool.core.bean.BeanUtil;
-import cn.hutool.core.lang.UUID;
 import cn.hutool.core.util.RandomUtil;
-import com.baomidou.mybatisplus.core.toolkit.BeanUtils;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.hmdp.dto.LoginFormDTO;
 import com.hmdp.dto.Result;
@@ -11,21 +9,20 @@ import com.hmdp.dto.UserDTO;
 import com.hmdp.entity.User;
 import com.hmdp.mapper.UserMapper;
 import com.hmdp.service.IUserService;
+import com.hmdp.utils.CookieUtils;
+import com.hmdp.utils.JWTUtils;
 import com.hmdp.utils.RegexUtils;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.ibatis.jdbc.Null;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 
 import javax.annotation.Resource;
-import javax.servlet.http.HttpSession;
-
-import java.util.HashMap;
-import java.util.Map;
+import javax.servlet.http.HttpServletResponse;
+import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 
-import static com.baomidou.mybatisplus.core.toolkit.Wrappers.query;
-import static com.hmdp.utils.RedisConstants.*;
+import static com.hmdp.utils.RedisConstants.LOGIN_CODE_KEY;
+import static com.hmdp.utils.RedisConstants.LOGIN_CODE_TTL;
 import static com.hmdp.utils.SystemConstants.USER_NICK_NAME_PREFIX;
 
 /**
@@ -41,9 +38,13 @@ import static com.hmdp.utils.SystemConstants.USER_NICK_NAME_PREFIX;
 public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements IUserService {
     @Resource
     private StringRedisTemplate stringRedisTemplate;
+    @Resource
+    private JWTUtils jwtUtils;
+    @Resource
+    private CookieUtils cookieUtils;
     //发送验证码
     @Override
-    public Result sendCode(String phone, HttpSession session) {
+    public Result sendCode(String phone) {
         if (RegexUtils.isPhoneInvalid(phone)) {
             //不符合则返回错误信息
             return Result.fail("手机号错误！");
@@ -62,7 +63,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements IU
 
     //登录
     @Override
-    public Result login(LoginFormDTO loginForm, HttpSession session) {
+    public Result login(LoginFormDTO loginForm, HttpServletResponse response) {
         //检查手机号是否发生变动
         String phone = loginForm.getPhone();
         if(!(phone.equals(stringRedisTemplate.opsForValue().get("login:phone:"+phone)))){
@@ -79,29 +80,16 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements IU
              user = creatUserWithPhone(phone);
         }
         // 若有 则登录 并保存用户到Redis 并返回Token
-        //随机生成TOKEN
-        String token = UUID.randomUUID(false).toString();
-        //将User转为hash
-        UserDTO userDTO = BeanUtil.copyProperties(user,UserDTO.class);
-        Map<String, Object> userMap = BeanUtil.beanToMap(userDTO);
-        //todo!!ai!!!
-        Map<String, String> stringMap = new HashMap<>();
-        for (Map.Entry<String, Object> entry : userMap.entrySet()) {
-            if (entry.getValue() != null) {
-                stringMap.put(entry.getKey(), entry.getValue().toString());
-            } else {
-                stringMap.put(entry.getKey(), "");
-            }
-        }
-        //todo!!ai!!!
+        UserDTO userDTO = BeanUtil.copyProperties(user, UserDTO.class);
+        //随机生成jwtTOKEN
+        String token = jwtUtils.generateJWT(userDTO);
+        //生成UUID为refreshToken
+        String rt = UUID.randomUUID().toString();
+        stringRedisTemplate.opsForValue().set("login:rt:"+rt,user.getId().toString(),7,TimeUnit.DAYS);
+        cookieUtils.setSecureCookie(response,"AT",token,60*60*24*7);
+        cookieUtils.setSecureCookie(response,"RT",rt,60*60*24*7);
 
-
-        //存储
-        stringRedisTemplate.opsForHash().putAll(LOGIN_USER_KEY+token,stringMap);
-        stringRedisTemplate.expire(LOGIN_USER_KEY+token,LOGIN_USER_TTL,TimeUnit.MINUTES);
-        //返回TOKEN
-
-        return Result.ok(token);
+        return Result.ok();
     }
 
     @Override

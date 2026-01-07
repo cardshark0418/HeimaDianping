@@ -1,15 +1,20 @@
 package com.hmdp.utils;
+
 import cn.hutool.core.bean.BeanUtil;
-import cn.hutool.core.util.BooleanUtil;
 import cn.hutool.core.util.StrUtil;
 import cn.hutool.json.JSONUtil;
 import lombok.extern.slf4j.Slf4j;
+import org.redisson.api.RLock;
+import org.redisson.api.RedissonClient;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Component;
+
 import javax.annotation.Resource;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
-import static com.hmdp.utils.RedisConstants.*;
+
+import static com.hmdp.utils.RedisConstants.CACHE_NULL_TTL;
+import static com.hmdp.utils.RedisConstants.LOCK_SHOP_KEY;
 
 
 @Slf4j
@@ -17,13 +22,15 @@ import static com.hmdp.utils.RedisConstants.*;
 public class CacheClient {
     @Resource
     private StringRedisTemplate stringRedisTemplate;
-
+    @Resource
+    RedissonClient redissonClient;
     //set
     public void set(String key, Object value, Long time, TimeUnit unit){
         stringRedisTemplate.opsForValue().set(key, JSONUtil.toJsonStr(value),time, unit);
     }
     //get
     public <R,ID> R queryWithPathThrough(String keyPrefix, ID id, Class<R> type, Function<ID,R> dbFallBack,Long time,TimeUnit unit) {
+
         String key = keyPrefix+id;
         //从Redis查询数据
         String s = stringRedisTemplate.opsForValue().get(key);
@@ -32,14 +39,17 @@ public class CacheClient {
             //存在
             return JSONUtil.toBean(s,type);
         }
+        //是否是缓存的空值？
         if(s!=null){
             return null;
         }
+        //到这一步说明缓存中不存在
         //缓存重建
-        String lockKey = LOCK_SHOP_KEY+id;//怎么起名？todo
-        R r = null;
+        String lockKey = LOCK_SHOP_KEY+id;
+        RLock lock = redissonClient.getLock(lockKey);
+        R r;
         try {
-            boolean flag = tryLock(lockKey);
+            boolean flag = lock.tryLock();//上锁
             if(!flag){
                 Thread.sleep(50);
                 return queryWithPathThrough(keyPrefix, id, type, dbFallBack,time,unit);
@@ -48,7 +58,7 @@ public class CacheClient {
             String s2 = stringRedisTemplate.opsForValue().get(key);
             if(!StrUtil.isBlank(s2)){
                 //存在
-                unLock(lockKey);
+                lock.unlock();
                 return BeanUtil.toBean(s2,type);
             }
             if(s2!=null){
@@ -61,7 +71,7 @@ public class CacheClient {
             if (r==null) {
                 //不存在
 //                stringRedisTemplate.opsForValue().set(CACHE_SHOP_KEY+id, "",CACHE_NULL_TTL, TimeUnit.MINUTES);
-                this.set(key,"",CACHE_NULL_TTL,TimeUnit.MINUTES);
+                this.set(key,"",CACHE_NULL_TTL,TimeUnit.MINUTES);//缓存空值
                 return null;
             }
             //存在 写入redis
@@ -70,15 +80,15 @@ public class CacheClient {
         } catch (InterruptedException e) {
             throw new RuntimeException(e);
         } finally {
-            unLock(lockKey);
+            lock.unlock();
         }
         return r;
     }
-    private boolean tryLock(String lockKey){
-        Boolean b = stringRedisTemplate.opsForValue().setIfAbsent(lockKey, "1", LOCK_SHOP_TTL, TimeUnit.SECONDS);
-        return BooleanUtil.isTrue(b);
-    }
-    private void unLock(String lockKey){
-        stringRedisTemplate.delete(lockKey);
-    }
+//    private boolean tryLock(String lockKey){
+//        Boolean b = stringRedisTemplate.opsForValue().setIfAbsent(lockKey, "1", LOCK_SHOP_TTL, TimeUnit.SECONDS);
+//        return BooleanUtil.isTrue(b);
+//    }
+//    private void unLock(String lockKey){
+//        stringRedisTemplate.delete(lockKey);
+//    }
 }

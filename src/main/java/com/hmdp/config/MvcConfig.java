@@ -1,7 +1,7 @@
 package com.hmdp.config;
-
+import com.hmdp.utils.CookieUtils;
+import com.hmdp.utils.JWTUtils;
 import com.hmdp.utils.LoginInterceptor;
-import com.hmdp.utils.RefreshInterceptor;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.web.servlet.config.annotation.InterceptorRegistry;
@@ -13,10 +13,13 @@ import javax.annotation.Resource;
 public class MvcConfig implements WebMvcConfigurer {
     @Resource
     private StringRedisTemplate stringRedisTemplate;
+    @Resource
+    private JWTUtils jwtUtils;
+    @Resource
+    private CookieUtils cookieUtils;
     @Override
     public void addInterceptors(InterceptorRegistry registry) {
-        registry.addInterceptor(new RefreshInterceptor(stringRedisTemplate)).order(0);
-        registry.addInterceptor(new LoginInterceptor())
+        registry.addInterceptor(new LoginInterceptor(stringRedisTemplate,jwtUtils,cookieUtils))
                 .excludePathPatterns(
                         "/user/login",
                         "/user/code",
@@ -25,7 +28,7 @@ public class MvcConfig implements WebMvcConfigurer {
                         "/shop-type/**",
                         "/voucher/**",
                         "/shop"
-                ).order(1);
+                );
     }
 
 }
