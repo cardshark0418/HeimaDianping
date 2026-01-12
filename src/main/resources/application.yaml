@@ -1,6 +1,11 @@
 server:
   port: 8081
 spring:
+  rabbitmq:
+    listener:
+      simple:
+        # 开启手动确认模式
+        acknowledge-mode: manual
   application:
     name: hmdp
   datasource:

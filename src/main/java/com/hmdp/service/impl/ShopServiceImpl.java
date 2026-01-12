@@ -39,17 +39,17 @@ import static com.hmdp.utils.RedisConstants.*;
 public class ShopServiceImpl extends ServiceImpl<ShopMapper, Shop> implements IShopService {
     @Resource
     private StringRedisTemplate stringRedisTemplate;
-
+    @Resource
+    private RBloomFilter<Long> idBloomFilter;
     @Resource
     private CacheClient cacheClient;
 
-    @Resource
-    private RBloomFilter<Long> shopIdBloomFilter;
+
 
     @Override
     public Result queryById(Long id) {
-        if(!shopIdBloomFilter.contains(id)){
-            log.warn("布隆过滤器判定店铺ID {} 不存在", id);
+        if(!idBloomFilter.contains(id)){
+            log.warn("布隆过滤器判定ID {} 不存在", id);
             return Result.fail("店铺不存在！");
         }
         Shop shop = cacheClient.queryWithPathThrough(CACHE_SHOP_KEY, id, Shop.class, this::getById, CACHE_SHOP_TTL, TimeUnit.MINUTES);

@@ -1,4 +1,5 @@
 package com.hmdp.utils;
+
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Component;
 
@@ -22,10 +23,4 @@ public class RedisIdWorker {
         long count = stringRedisTemplate.opsForValue().increment("icr:"+keyPrefix+":"+data);
         return timeStamp << 32 | count;
     }
-
-//    public static void main(String[] args) {
-//        LocalDateTime now = LocalDateTime.of(2025, 11, 20, 21, 14);
-//        System.out.println(now.toEpochSecond(ZoneOffset.UTC));
-//        return;
-//    }
 }

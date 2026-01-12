@@ -1,13 +1,14 @@
 package com.hmdp.utils;
+
 import cn.hutool.core.lang.UUID;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.script.DefaultRedisScript;
 
-
 import java.util.Collections;
 import java.util.concurrent.TimeUnit;
 
+//换成了redisson的分布式锁 已经废弃不用了
 public class SimpleRedisLock{
     private static final String KEY_PREFIX = "lock:";
     private static final String ID_PREFIX = UUID.randomUUID().toString(true)+"-";
@@ -30,13 +31,6 @@ public class SimpleRedisLock{
         return Boolean.TRUE.equals(flag);
 
     }
-//    public void unLock() {
-//        String threadId = ID_PREFIX + Thread.currentThread().getId();
-//        String id = stringRedisTemplate.opsForValue().get(KEY_PREFIX + name);
-//        if (id.equals(threadId)) {
-//            stringRedisTemplate.delete(KEY_PREFIX + name);
-//        }
-//    }
     public void unLock() {
         stringRedisTemplate.execute(
                 UNLOCK_SCRIPT,

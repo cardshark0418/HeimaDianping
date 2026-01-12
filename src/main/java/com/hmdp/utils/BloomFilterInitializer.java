@@ -22,10 +22,9 @@ public class BloomFilterInitializer {
 
     @PostConstruct
     public void init(){
-        if (shopIdBloomFilter.count() > 0) {
-            log.info("布隆过滤器已存在数据，元素数量: {}", shopIdBloomFilter.count());
-            return; // 已有数据，跳过初始化
-        }
+        //删除布隆过滤器中的数据 重建
+        shopIdBloomFilter.delete();
+        shopIdBloomFilter.tryInit(10000L, 0.01);
         List<Long> shopIds = shopService.query()
                 .select("id")
                 .list().stream().map(Shop::getId)

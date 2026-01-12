@@ -1,6 +1,7 @@
 package com.hmdp.service.impl;
 
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
+import com.hmdp.config.MQConfig;
 import com.hmdp.dto.Result;
 import com.hmdp.entity.VoucherOrder;
 import com.hmdp.mapper.VoucherOrderMapper;
@@ -9,19 +10,16 @@ import com.hmdp.service.IVoucherOrderService;
 import com.hmdp.utils.RedisIdWorker;
 import com.hmdp.utils.UserHolder;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.script.DefaultRedisScript;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
-import javax.annotation.PostConstruct;
 import javax.annotation.Resource;
 import java.util.Collections;
-import java.util.concurrent.ArrayBlockingQueue;
-import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 
 /**
  * <p>
@@ -35,11 +33,13 @@ import java.util.concurrent.Executors;
 @Slf4j
 public class VoucherOrderServiceImpl extends ServiceImpl<VoucherOrderMapper, VoucherOrder> implements IVoucherOrderService {
     @Resource
-    private ISeckillVoucherService iSeckillVoucherService;
-    @Resource
     private RedisIdWorker redisIdWorker;
     @Autowired
     private StringRedisTemplate stringRedisTemplate;
+    @Resource
+    private RabbitTemplate rabbitTemplate;
+    @Resource
+    private ISeckillVoucherService iSeckillVoucherService;
 
     private static final DefaultRedisScript<Long> SECKILL_SCRIPT;
 
@@ -49,55 +49,37 @@ public class VoucherOrderServiceImpl extends ServiceImpl<VoucherOrderMapper, Vou
         SECKILL_SCRIPT.setResultType(Long.class);
     }
 
-    @PostConstruct
-    private void init() {
-        SECKILL_ORDER_EXECUTOR.submit(new VoucherOrderHandler());
-    }
-
-    BlockingQueue<VoucherOrder> blockingQueue = new ArrayBlockingQueue<>(1024 * 1024);
-    private static final ExecutorService SECKILL_ORDER_EXECUTOR = Executors.newSingleThreadExecutor();
-
-    private class VoucherOrderHandler implements Runnable {
-        @Override
-        public void run() {
-            while (true) {
-                VoucherOrder voucherOrder;
-                try {
-                    voucherOrder = blockingQueue.take();
-                    handleVoucherOrder(voucherOrder);
-                } catch (Exception e) {
-                    log.error("处理订单异常", e);
-                }
-            }
-        }
-
-        private void handleVoucherOrder(VoucherOrder voucherOrder) {
-            boolean flag = iSeckillVoucherService.update().setSql("stock=stock-1").eq("voucher_id", voucherOrder.getVoucherId()).gt("stock", 0).update();
-            if (!flag) {
-                log.error("库存不足！");
-                return;
-            }
-            save(voucherOrder);
-        }
-    }
-
     @Override
     public Result seckillVoucher(Long voucherId) {
         Long userId = UserHolder.getUser().getId();
         Long result = stringRedisTemplate.execute(SECKILL_SCRIPT,
                 Collections.emptyList(),
                 voucherId.toString(), userId.toString());
-        if (result == 1) return Result.fail("不能重复下单！");
-        else if (result == 2) return Result.fail("库存不足！");
+        if (result == 1) return Result.fail("库存不足！");
+        else if (result == 2) return Result.fail("不能重复下单！");
 
+        Long orderId = redisIdWorker.nextId("order");
         VoucherOrder voucherOrder = new VoucherOrder();
         voucherOrder.setVoucherId(voucherId);//优惠券id
         voucherOrder.setUserId(userId);//用户id
-        voucherOrder.setId(redisIdWorker.nextId("order"));//订单id
-        blockingQueue.add(voucherOrder);
+        voucherOrder.setId(orderId);//订单id
+        rabbitTemplate.convertAndSend(MQConfig.SECKILL_QUEUE, voucherOrder);
 
 
-        return Result.ok();
+        return Result.ok(orderId);
+    }
+    @Transactional
+    @Override
+    public void createVoucherOrder(VoucherOrder voucherOrder) {
+        boolean flag = iSeckillVoucherService.update()
+                .setSql("stock=stock-1")
+                .eq("voucher_id", voucherOrder.getVoucherId())
+                .gt("stock", 0)
+                .update();
+        if (!flag) {
+            throw new RuntimeException("数据库库存已耗尽");
+        }
+        save(voucherOrder);
     }
 }
 

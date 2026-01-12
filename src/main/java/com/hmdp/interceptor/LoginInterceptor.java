@@ -1,6 +1,9 @@
-package com.hmdp.utils;
+package com.hmdp.interceptor;
 
 import com.hmdp.dto.UserDTO;
+import com.hmdp.utils.CookieUtils;
+import com.hmdp.utils.JWTUtils;
+import com.hmdp.utils.UserHolder;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.lang.NonNull;
 import org.springframework.web.servlet.HandlerInterceptor;
@@ -10,7 +13,6 @@ import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 
 import static org.springframework.web.util.WebUtils.getCookie;
-
 public class LoginInterceptor implements HandlerInterceptor{
     private final StringRedisTemplate stringRedisTemplate;
     private final JWTUtils jwtUtils;
