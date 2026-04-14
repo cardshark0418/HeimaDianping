@@ -4,12 +4,16 @@
 
 使用JMeter对关键接口（优惠券秒杀）进行压测：
 
-首先测试一人一单，设置100个线程组,所有线程组使用同一个AccessToken模拟同一个用户同时进行100次抢购
+首先测试一人一单，设置100个线程组,所有线程组使用同一个AccessToken模拟同一个用户同时进行100次抢购,结果一百次请求全部成功
+
 <img width="611" height="278" alt="image" src="https://github.com/user-attachments/assets/009390ba-5bd4-4fdb-8a66-506949ef68aa" />
-一百次请求全部成功
+
 <img width="1125" height="190" alt="image" src="https://github.com/user-attachments/assets/d88d8d9d-cbb9-4028-94a9-5daed9fff65b" />
+
 然而查询redis和数据库，订单只增加了一个，库存也只减少了一个
+
 <img width="1175" height="285" alt="image" src="https://github.com/user-attachments/assets/d808c40b-ccd2-4b35-b221-baa54edae04d" />
+
 系统接收到订单请求后，将订单全部存储到消息队列，消息队列只处理了其中的一条
 结果显示，100次高并发请求全部返回成功（HTTP 200），但后端持久化层（Redis/MySQL）仅产生一条有效数据。证明了系统在业务层面实现了严格的幂等性控制。
 
