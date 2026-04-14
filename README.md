@@ -23,6 +23,9 @@
 <img width="1180" height="164" alt="image" src="https://github.com/user-attachments/assets/30e2b04c-3936-47e6-b92c-9dd46bab35ad" />
 
 异常率50%，符合用户与优惠券的比值，QPS达到730
+相对于同步版本 QPS提升了两倍
+
+<img width="1130" height="145" alt="image" src="https://github.com/user-attachments/assets/5f628f1e-c4d5-440d-bfce-29003d4bc406" />
 
 
 
