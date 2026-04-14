@@ -1,12 +1,9 @@
-<img width="1180" height="164" alt="image" src="https://github.com/user-attachments/assets/5780ee34-0076-4bab-840c-a668aa929a3f" />项目架构图
-
+项目架构图
 <img width="657" height="782" alt="image" src="https://github.com/user-attachments/assets/a9cd96a8-06d6-4999-bb1f-b5f4a3ae7d21" />
 
 使用JMeter对关键接口（优惠券秒杀）进行压测：
 
 首先测试一人一单，设置100个线程组,所有线程组使用同一个AccessToken模拟同一个用户同时进行100次抢购,结果一百次请求全部成功
-
-<img width="611" height="278" alt="image" src="https://github.com/user-attachments/assets/009390ba-5bd4-4fdb-8a66-506949ef68aa" />
 
 <img width="1125" height="190" alt="image" src="https://github.com/user-attachments/assets/d88d8d9d-cbb9-4028-94a9-5daed9fff65b" />
 
